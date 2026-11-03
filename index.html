@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>滑鼠樂園</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 10 10%27%3E%3Ctext y=%279%27 font-size=%279%27%3E%F0%9F%90%AD%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="style.css">
+</head>
+<body data-screen="home">
+
+<!-- 首頁 -->
+<section id="home" class="screen active">
+  <div class="home-card">
+    <div class="home-mouse" id="homeMouse"></div>
+    <h1>🐭 滑鼠樂園</h1>
+    <p class="home-sub">練習滑鼠：按一下、按兩下、按右鍵、拖一拖</p>
+    <div class="home-btns">
+      <button id="btnStart" class="big primary">▶ 開始玩</button>
+      <button id="btnWarm" class="big">👆 測測你的雙擊</button>
+    </div>
+  </div>
+</section>
+
+<!-- 地圖 -->
+<section id="map" class="screen">
+  <header class="map-top">
+    <button id="mapHome" class="small">🏠 首頁</button>
+    <h1>🐭 滑鼠樂園</h1>
+    <div class="today" id="todayBox">今天完成 <b id="todayN">0</b> 關　★ <b id="todayS">0</b></div>
+  </header>
+  <div class="map-opts">
+    <div class="seg" id="segDiff">
+      <button data-diff="easy">🌱 輕鬆</button><button data-diff="normal">🌳 普通</button><button data-diff="hard">🔥 挑戰</button>
+    </div>
+    <span id="diffNote" class="diff-note"></span>
+    <label class="opt"><input type="checkbox" id="optLefty"> 左手模式</label>
+    <label class="opt"><input type="checkbox" id="optSound"> 🔊 聲音</label>
+    <label class="opt"><input type="checkbox" id="optUnlock"> 全部解鎖（老師用）</label>
+    <button id="mapWarm" class="small">👆 測測你的雙擊</button>
+  </div>
+  <div id="worlds"></div>
+</section>
+
+<!-- 一局遊戲 -->
+<section id="game" class="screen">
+  <div id="hud">
+    <button id="hudBack" class="small">← 地圖</button>
+    <div id="hudTitle"></div>
+    <div class="bar"><i id="hudBar"></i></div>
+    <div id="hudStat"></div>
+  </div>
+  <div id="play"></div>
+  <div id="fb" class="fb hidden"></div>
+  <div id="intro" class="intro hidden"></div>
+  <div id="result" class="overlay hidden"></div>
+</section>
+
+<!-- 測測你的雙擊 -->
+<section id="warm" class="screen">
+  <header class="map-top">
+    <button id="warmBack" class="small">← 回去</button>
+    <h1>👆 測測你的雙擊</h1>
+  </header>
+  <div class="warm-body">
+    <p class="warm-help">用「左鍵」，在下面的大框框裡<b>快速連點兩下</b>！</p>
+    <div id="warmPad"><span>👆</span><span>連點兩下</span></div>
+    <div class="warm-info">
+      <div class="warm-big">雙擊間隔：<b id="warmDt">—</b></div>
+      <div id="warmMsg" class="warm-msg">還沒有開始，快來點兩下！</div>
+      <div id="warmAvg" class="warm-avg"></div>
+      <div id="warmSuggest" class="warm-suggest"></div>
+      <button id="warmApply" class="small hidden"></button>
+    </div>
+  </div>
+</section>
+
+<!-- 老師密碼 -->
+<div id="pwBox" class="overlay hidden">
+  <form id="pwForm" class="pw-card">
+    <h2>🔒 老師專用</h2>
+    <p>請輸入密碼，打開全部關卡</p>
+    <input id="pwInput" type="password" autocomplete="off">
+    <div id="pwErr" class="pw-err"></div>
+    <div class="pw-btns"><button type="submit" class="primary">確定</button><button type="button" id="pwCancel">取消</button></div>
+  </form>
+</div>
+
+<!-- 右下角即時滑鼠圖 -->
+<div id="mouseHud"><div id="mouseHudSvg"></div><div id="mouseHudCap">滑鼠</div></div>
+
+<script src="core.js"></script>
+<script src="art.js"></script>
+<script src="input.js"></script>
+<script src="levels.js"></script>
+<script src="games.js"></script>
+<script src="main.js"></script>
+</body>
+</html>
