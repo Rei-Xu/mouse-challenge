@@ -62,6 +62,7 @@
     $('#optSound').checked = !!save.sound;
     $('#optUnlock').checked = !!save.unlockAll;
     $('#diffNote').textContent = DIFF[save.diff].note;
+    applyTheme();
     const t = MP.todayRec();
     $('#todayN').textContent = t.n; $('#todayS').textContent = t.s;
     const box = $('#worlds'); box.innerHTML = '';
@@ -114,16 +115,36 @@
   };
   const ruleFor = st => { const g = GAMES[st.game]; return (g.rules && g.rules[save.diff]) || {}; };
   const countFor = (st, d) => { const g = GAMES[st.game], ru = ruleFor(st); return ru.count || (g.count ? g.count(d) : d.n); };
-  // 外觀主題：每局隨機抽一套，不跟上一局一樣
+  // 外觀主題：從這個難度的主題（森林／城市／恐龍）裡隨機抽一套，不跟上一局一樣
   const lastSkin = {};
+  const themeOf = () => MP.THEME[save.diff] || MP.THEME.easy;
   function pickSkin(gid) {
-    const sks = GAMES[gid].skins;
-    if (!sks || !sks.length) return {};
+    const all = GAMES[gid].skins;
+    if (!all || !all.length) return {};
+    const mine = all.filter(s => s.th === themeOf().k), sks = mine.length ? mine : all;
     let s, k = 0;
     do { s = sks[Math.floor(Math.random() * sks.length)]; } while (sks.length > 1 && s.k === lastSkin[gid] && ++k < 20);
     lastSkin[gid] = s.k;
     return s;
   }
+  // 背景裝飾（不擋點擊）：st 不會動、mv 會動（拖曳和模擬電腦關用 CSS 藏起來）
+  function decoLayer() {
+    const T = themeOf(), box = h('div', 'deco' + (T.quake ? ' quake' : ''));
+    T.st.forEach(s => {
+      const [em, left, size] = s.split(' ');
+      const e = h('span', 'st', em);
+      e.style.cssText = `left:${left}%;font-size:${size}px;`;
+      box.appendChild(e);
+    });
+    for (let i = 0; i < T.mv.n; i++) {
+      const e = h('span', 'mv ' + T.mv.cls, T.mv.em[i % T.mv.em.length]);
+      const dur = T.mv.cls === 'leaf' ? 9 + Math.random() * 6 : T.mv.cls === 'car' ? 11 + Math.random() * 6 : 26 + Math.random() * 10;
+      e.style.cssText = `left:${Math.round(4 + Math.random() * 88)}%;animation-duration:${dur.toFixed(1)}s;animation-delay:-${(Math.random() * dur).toFixed(1)}s;`;
+      box.appendChild(e);
+    }
+    return box;
+  }
+  function applyTheme() { document.body.dataset.theme = themeOf().k; }
   // 說明文字裡的 {n} {d} {z} 換成外觀主題的字
   const fill = (t, sk) => String(t || '').replace(/\{(\w)\}/g, (m, k) => (sk && sk[k] != null ? sk[k] : ''));
   const isTimed = st => !!GAMES[st.game].timed && save.diff === 'hard';
@@ -138,8 +159,10 @@
     $('#result').className = 'overlay hidden';
     $('#hudTitle').innerHTML = `<b>${st.id}</b> ${skin.icon || GAMES[st.game].icon} ${esc(skin.title || st.title)}`;
     $('#hudBar').style.width = '0%';
+    applyTheme();
     $('#play').innerHTML = '';
-    $('#play').className = 'play-' + st.game + ' lv-' + save.diff + (skin.cls ? ' ' + skin.cls : '');
+    $('#play').className = 'play-' + st.game + ' lv-' + save.diff + ' m-' + GAMES[st.game].mode + (skin.cls ? ' ' + skin.cls : '');
+    $('#play').appendChild(decoLayer());
     run = { wi: wi, si: si, st: st, d: d, skin: skin, rule: ruleFor(st), total: countFor(st, d), t0: 0, timeTimer: 0, correct: 0, escaped: 0, wrong: 0, errs: {}, combo: 0,
             running: false, done: false, timers: [], raf: 0, game: null, detach: null, demo: null, gesture: null };
     updateStat();

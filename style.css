@@ -352,3 +352,57 @@ kbd { background: rgba(0,0,0,.12); border-radius: 6px; padding: 1px 8px; font-si
 .d-menu div { padding: 2px 14px; white-space: nowrap; }
 .d-menu div.hl { background: #d0ebff; }
 .d-menu div.on { background: #74c0fc; }
+
+/* ====================== 2026-11-03b 三難度三主題：森林／城市／恐龍 ====================== */
+/* 地圖、HUD 配色 */
+body[data-theme="forest"] #map, body[data-theme="forest"] #warm { background: linear-gradient(#d3f9d8, #f4fce3); }
+body[data-theme="city"]   #map, body[data-theme="city"]   #warm { background: linear-gradient(#d0ebff, #f1f3f5); }
+body[data-theme="dino"]   #map, body[data-theme="dino"]   #warm { background: linear-gradient(#ffe8cc, #fff4e6); }
+body[data-theme="forest"] .seg button.on { background: #8ce99a; }
+body[data-theme="city"]   .seg button.on { background: #74c0fc; }
+body[data-theme="dino"]   .seg button.on { background: #ffa94d; }
+body[data-theme="forest"] #hud { background: #ebfbee; border-bottom-color: #2b8a3e; }
+body[data-theme="city"]   #hud { background: #e7f5ff; border-bottom-color: #1864ab; }
+body[data-theme="dino"]   #hud { background: #fff4e6; border-bottom-color: #d9480f; }
+
+/* 遊戲背景（每個主題一種，個別遊戲再微調） */
+body[data-theme="forest"] #play { background: linear-gradient(#c5ecff 0%, #e3f8d0 60%, #a9e09a 100%); }
+body[data-theme="city"]   #play { background: linear-gradient(#a5d8ff 0%, #e7f5ff 80%, #868e96 80%, #6c757d 100%); }
+body[data-theme="dino"]   #play { background: linear-gradient(#ffb070 0%, #ffe3bf 62%, #d9a066 86%, #a9744f 100%); }
+body[data-theme="forest"] #play.play-mole { background: linear-gradient(#b2f2bb, #69c95b); }
+body[data-theme="city"]   #play.play-mole { background: linear-gradient(#dee2e6, #868e96); }
+body[data-theme="dino"]   #play.play-mole { background: linear-gradient(#f3c98b, #b9783f); }
+body[data-theme] #play.sk-night { background: linear-gradient(#1b2559, #3b4a8f); }
+body[data-theme] #play.sk-road  { background: linear-gradient(#ced4da, #adb5bd); }
+body[data-theme] #play.sk-dusk  { background: linear-gradient(#3b1f5c, #c2553a 75%, #6b3a1f); }
+/* 模擬電腦關：只換桌布，圖示和選單不動 */
+body[data-theme="forest"] #play.desk { background: linear-gradient(160deg, #2b8a3e, #69db7c); }
+body[data-theme="city"]   #play.desk { background: linear-gradient(160deg, #1c2a4a, #364fc7 70%, #f59f00); }
+body[data-theme="dino"]   #play.desk { background: linear-gradient(160deg, #5c2b0f, #c2410c 70%, #ffa94d); }
+
+/* 主題角色 */
+#play.sk-city .hole { background: radial-gradient(ellipse at 50% 100%, #212529 0, #212529 62%, transparent 63%); }
+#play.sk-city .hole::after { background: #495057; }
+#play.sk-city .mole { background: #ced4da; border-color: #495057; }
+#play.sk-dino .mole { background: #fff4e6; border-color: #b9783f; border-radius: 50% 50% 46% 46% / 60% 60% 40% 40%; }
+#play.sk-city .mole.decoy, #play.sk-dino .mole.decoy { background: #ffe3ec; border-color: #f783ac; border-radius: 50%; }
+#play.sk-city .mole.hit, #play.sk-dino .mole.hit { background: #ffa94d; }
+body[data-theme="forest"] .star:not(.held), body[data-theme="city"] .star:not(.held) { filter: drop-shadow(0 4px 6px rgba(0,0,0,.25)); }
+
+/* 背景裝飾：完全不擋滑鼠 */
+.deco { position: absolute; inset: 0; z-index: 0; pointer-events: none; overflow: hidden; }
+.deco span { position: absolute; pointer-events: none; line-height: 1; }
+.deco .st { bottom: -6px; opacity: .55; }
+.deco .mv { font-size: 30px; opacity: .65; animation-timing-function: linear; animation-iteration-count: infinite; }
+.deco .leaf { top: -40px; animation-name: leaf; }
+@keyframes leaf { 0% { transform: translate(0, 0) rotate(0); } 50% { transform: translate(40px, 50vh) rotate(180deg); } 100% { transform: translate(-20px, 105vh) rotate(360deg); } }
+.deco .car { bottom: 4px; font-size: 40px; left: 0 !important; animation-name: car; opacity: .75; }
+@keyframes car { from { transform: translateX(105vw); } to { transform: translateX(-12vw); } }
+.deco .walk { bottom: 2px; font-size: 110px; left: 0 !important; animation-name: car; filter: brightness(0); opacity: .18; }
+.deco.quake { animation: quake 11s infinite; }
+@keyframes quake { 0%, 88%, 100% { transform: none; } 89% { transform: translate(-6px, 2px); } 90% { transform: translate(6px, -2px); } 91% { transform: translate(-5px, 1px); } 92% { transform: translate(5px, 0); } 93% { transform: translate(-3px, 0); } 94% { transform: none; } }
+/* 拖曳關、模擬電腦關：背景不要有會動的東西 */
+#play.m-drag .deco .mv, #play.m-menudrag .deco .mv, #play.m-dbltap .deco .mv, #play.desk .deco .mv { display: none; }
+#play.m-drag .deco, #play.m-menudrag .deco, #play.m-dbltap .deco, #play.desk .deco { animation: none; }
+#play.desk .deco .st { opacity: .3; }
+@media (prefers-reduced-motion: reduce) { .deco, .deco .mv { animation: none !important; } .deco .mv { display: none; } }

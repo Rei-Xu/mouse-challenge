@@ -480,7 +480,7 @@
           return;
         }
         act = act.filter(x => x !== a);
-        a.el.classList.add('hit'); a.el.textContent = sk.k === 'mole' ? '😵' : '💥';
+        a.el.classList.add('hit'); a.el.textContent = sk.hitT || '💥';
         setTimeout(() => a.el.remove(), 380);
         ctx.hit();
         next();
@@ -505,7 +505,10 @@
         if (stars.some(o => Math.hypot(o.x - x, o.y - y) < s() * 2.2)) continue;
         break;
       }
-      const a = Math.random() * Math.PI * 2;
+      // 主題小變化：城市（普通）的鴿子/風箏大多橫著飛；恐龍（挑戰）的流星/甲蟲斜斜飛
+      let a = Math.random() * Math.PI * 2;
+      if (ctx.level === 'normal') a = (Math.random() < 0.5 ? 0 : Math.PI) + (Math.random() - 0.5) * 0.5;
+      else if (ctx.level === 'hard') a = Math.PI / 4 + Math.floor(Math.random() * 4) * Math.PI / 2 + (Math.random() - 0.5) * 0.2;
       const el = MP.h('div', 'star', sk.em + (num ? `<b class="num">${num}</b>` : ''));
       el.style.cssText = `width:${s()}px;height:${s()}px;font-size:${Math.round(s() * 0.85)}px;line-height:${s()}px;`;
       ctx.el.appendChild(el);
@@ -792,7 +795,7 @@
 
   // ---------- 3-2 開寶箱（輕鬆 3 箱看顏色／普通 4 箱看顏色＋圖案／挑戰 5 箱還會換位置） ----------
   G.chest = function () {
-    let ctx, filt, chests = [], want = null, busy = false;
+    let ctx, sk, filt, chests = [], want = null, busy = false;
     const CCOL = [['紅色', '#fa5252'], ['藍色', '#339af0'], ['綠色', '#40c057'], ['黃色', '#fcc419'], ['紫色', '#be4bdb']];
     const MARKS = [['⭐', '星星'], ['❤️', '愛心'], ['🍀', '幸運草'], ['🔷', '菱形']];
     const GEMS = ['💎', '🪙', '👑', '🏆', '🍭', '🎁', '⭐', '🧸', '💍', '🔮', '🎀', '🧁', '🪀', '🦄', '🍩', '🎹'];
@@ -811,7 +814,7 @@
       const gap = n <= 3 ? 0.22 : n === 4 ? 0.19 : 0.16;
       list.forEach((C, i) => {
         const front = C.m ? `<span class="ch-mark">${C.m[0]}</span>` : '<span class="ch-lock">🔒</span>';
-        const ch = ent('chest', `<div class="ch-lid"></div><div class="ch-body">${front}</div><div class="ch-gem">${bag('gem', GEMS)}</div><div class="ch-name">${C.c[0]}</div>`,
+        const ch = ent('chest', `<div class="ch-lid"></div><div class="ch-body">${front}</div><div class="ch-gem">${bag('gem-' + (sk.k || ''), sk.gems || GEMS)}</div><div class="ch-name">${C.c[0]}</div>`,
           W * (0.47 + (i - (n - 1) / 2) * gap), H / 2 + 30);
         ch.style.setProperty('--cc', C.c[1]);
         ch.style.setProperty('--cs', s + 'px');
@@ -841,7 +844,7 @@
       }
     }
     return {
-      init(c) { ctx = c; filt = dblFilter(ctx); round(); },
+      init(c) { ctx = c; sk = ctx.skin || {}; filt = dblFilter(ctx); round(); },
       onGesture(ev0) {
         const ev = filt(ev0); if (!ev || busy) return;
         const ch = elAt(ev, '.chest');
@@ -930,7 +933,7 @@
      ==================================================================== */
   // ---------- 4-1 餵小動物（輕鬆只要餵食／普通看需求／挑戰三隻一起） ----------
   G.feed = function () {
-    let ctx, menu, pets = [], spawned = 0, slotsUsed = [];
+    let ctx, sk, menu, pets = [], spawned = 0, slotsUsed = [];
     const PETS = ['🐰', '🐶', '🐱', '🐹', '🐼', '🐨', '🐵', '🐸', '🐷', '🐻', '🦊', '🐯', '🐮', '🐔', '🐧', '🦁'];
     const MENU = [{ k: 'feed', icon: '🍎', t: '餵食' }, { k: 'bath', icon: '🛁', t: '洗澡' }, { k: 'sleep', icon: '💤', t: '睡覺' }, { k: 'ball', icon: '🎾', t: '玩球' }];
     const DONE = { feed: '🍎', bath: '🫧', sleep: '💤', ball: '🎾' };
@@ -951,7 +954,7 @@
           need = used.length ? pick(opts) : bag('feed-need', opts);   // 同時出現的不重複
         }
         const icon = MENU.find(m => m.k === need).icon;
-        const pet = ent('pet', bag('feed-pet', PETS) + (ctx.rule.need ? `<span class="need">${icon}</span>` : ''), p.x, p.y);
+        const pet = ent('pet', bag('feed-pet-' + (sk.k || ''), sk.pets || PETS) + (ctx.rule.need ? `<span class="need">${icon}</span>` : ''), p.x, p.y);
         sizeEmoji(pet, s, 0.85);
         pet.dataset.need = need;
         if (p.slot != null) pet.dataset.slot = p.slot;
@@ -960,15 +963,16 @@
     }
     return {
       init(c) {
-        ctx = c; menu = menuKit(ctx);
-        banner(ctx, ctx.rule.need ? `看小動物頭上的泡泡想要什麼，${V.R()}選對的！` : `在小動物身上${V.R()}，再${V.pick()}「🍎 餵食」`);
+        ctx = c; sk = ctx.skin || {}; menu = menuKit(ctx);
+        const nm = esc(sk.n || '小動物');
+        banner(ctx, ctx.rule.need ? `看${nm}頭上的泡泡想要什麼，${V.R()}選對的！` : `在${nm}身上${V.R()}，再${V.pick()}「🍎 餵食」`);
         spawn();
       },
       onGesture(ev) {
         menuGesture(ctx, menu, ev, {
           target: e => { const p = elAt(e, '.pet'); return p && pets.indexOf(p) >= 0 ? p : null; },
           menuFor: t => (t ? MENU : null),
-          noMenu: () => ctx.tip('要在小動物「身上」按右鍵喔！'),
+          noMenu: () => ctx.tip('要在' + (sk.n || '小動物') + '「身上」按右鍵喔！'),
           pick: (k, t) => {
             if (!t || pets.indexOf(t) < 0) return;
             if (k !== t.dataset.need) { ctx.miss('menu'); return; }
