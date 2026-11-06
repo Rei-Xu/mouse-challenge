@@ -406,3 +406,16 @@ body[data-theme="forest"] .star:not(.held), body[data-theme="city"] .star:not(.h
 #play.m-drag .deco, #play.m-menudrag .deco, #play.m-dbltap .deco, #play.desk .deco { animation: none; }
 #play.desk .deco .st { opacity: .3; }
 @media (prefers-reduced-motion: reduce) { .deco, .deco .mv { animation: none !important; } .deco .mv { display: none; } }
+
+/* 2026-11-06 圖片檔縮圖：相框裡看得到真正的內容（照片＝天空草地背景；畫＝白紙黃框） */
+.pic { display: inline-flex; align-items: center; justify-content: center; width: 1.1em; height: .9em; vertical-align: middle;
+       background: linear-gradient(#a5d8ff 0, #d0ebff 62%, #b2f2bb 63%); border: .06em solid #fff; outline: .025em solid #868e96;
+       border-radius: .05em; box-shadow: 0 .04em .1em rgba(0,0,0,.35); overflow: hidden; }
+.pic > i { font-style: normal; font-size: .6em; line-height: 1; }
+.pic.draw { background: #fffdf3; border-color: #ffd43b; outline-color: #e8a300; }
+.dicon .di-ico .pic, .ficon .di-ico .pic { margin: .04em 0 .06em; }
+.mini-win .mw-ico { display: block; font-size: 90px; line-height: 1.1; margin-bottom: 6px; }
+
+/* 2026-11-06 2-3 障礙物：不擋滑鼠（判定用座標算），撞到會抖一下＋紅光 */
+.obstacle { z-index: 3; pointer-events: none; text-align: center; border-radius: 50%; background: radial-gradient(circle, rgba(255,255,255,.55) 0 55%, transparent 70%); }
+.obstacle.nope { filter: drop-shadow(0 0 10px #fa5252); }

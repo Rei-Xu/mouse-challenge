@@ -31,6 +31,10 @@
   const posOf = el => ({ x: parseFloat(el.style.left), y: parseFloat(el.style.top) });
   const sizeEmoji = (el, s, k) => { el.style.cssText += `width:${s}px;height:${s}px;font-size:${Math.round(s * (k || 0.8))}px;line-height:${s}px;`; };
   const shake = el => { el.classList.remove('nope'); void el.offsetWidth; el.classList.add('nope'); };
+  // 圖片檔的縮圖：相框裡畫著「真正的內容」（🖼️ 這個符號本身是一張風景畫，小狗照片會看不到小狗）
+  // draw＝畫的（白紙＋黃框），沒寫＝照片（天空背景）
+  const pic = (em, draw) => `<span class="pic${draw ? ' draw' : ''}"><i>${em}</i></span>`;
+  const icoOf = el => el.querySelector('.di-ico').innerHTML;
 
   /* 洗牌袋：整個題庫輪完一遍才會重複（只記在這次開著的網頁裡，不存檔） */
   // 用「內容」比較（題庫每局會重新建立，不能用同一個物件來比）
@@ -119,8 +123,21 @@
       c.el.classList.add('return'); put(c.el, c.ox, c.oy);
       setTimeout(() => c.el.classList.remove('return'), 320);
     }
+    // 碰到障礙物：彈回原位（o.resetTo 有給就回「起點」重來）。blocked 可回傳錯誤種類字串
+    function hitBlock(c) {
+      const bk = o.blocked && o.blocked(c);
+      if (!bk) return false;
+      const k = cur; cur = null; setHover(null);
+      k.el.classList.remove('lifted');
+      const st = o.resetTo && o.resetTo(k.el);
+      if (st) { k.ox = st.x; k.oy = st.y; }
+      ctx.miss(typeof bk === 'string' ? bk : (o.blockKind || 'place')); back(k);
+      return true;
+    }
     return {
       active: () => !!cur,
+      // 障礙物會動時，每個畫面檢查一次：學生拿著不動、障礙物自己撞上來也算
+      poke() { if (cur) hitBlock(posOf(cur.el)); },
       handle(ev) {
         if (ev.type === 'dragstart') {
           const it = elAt(ev, '.dg');
@@ -139,12 +156,7 @@
           if (cur) {
             const p = rel(ctx, ev), c = { x: p.x + cur.dx, y: p.y + cur.dy };
             put(cur.el, c.x, c.y);
-            if (o.blocked && o.blocked(c)) {   // 碰到障礙物：彈回原位
-              const k = cur; cur = null; setHover(null);
-              k.el.classList.remove('lifted');
-              ctx.miss(o.blockKind || 'place'); back(k);
-              return true;
-            }
+            if (hitBlock(c)) return true;
             setHover(zoneAt(p, c));
           }
           return true;
@@ -684,7 +696,49 @@
 
   // ---------- 2-3 帶小動物回家（輕鬆 2 個家／普通 3 個家／挑戰要走橋過河） ----------
   G.home = function () {
-    let ctx, sk, kit, homes = [], done = 0, item = null, last = '', river = null;
+    const SWAY = 60;   // 火焰左右飄的幅度(px)
+    let ctx, sk, kit, homes = [], done = 0, item = null, last = '', river = null, obs = [], start = null;
+    // 障礙物：每隻動物出發前重新擺。放在「起點」和「家」中間，不擋住起點、家、河和木橋，彼此留出走得過的縫
+    function placeObs() {
+      obs.forEach(o => o.el.remove()); obs = [];
+      const n = ctx.rule.obs || 0, list = sk.ob || ['🪨'];
+      if (!n) return;
+      const W = ctx.el.clientWidth, H = ctx.el.clientHeight, s = ctx.d.size, os = Math.max(70, Math.round(s * 1.25));   // 挑戰級動物很小，障礙物至少 70px 才看得清楚
+      const x0 = 250 + os / 2, x1 = W - 410 - os / 2 - s / 2, y0 = (river ? 130 : 70) + os / 2, y1 = H - 40 - os / 2;
+      const gap = os + s * 1.5;   // 兩個障礙物之間至少留一隻動物寬的縫
+      // idx＝現在要擺第幾種；同一種試 250 次都擺不下（小螢幕常見）就換下一種，不要卡住讓後面都沒擺
+      for (let k = 0, idx = 0, fail = 0; obs.length < n && k < 4000; k++) {
+        if (fail > 250) { idx++; fail = 0; }
+        fail++;
+        const em = list[idx % list.length];
+        const mv = (ctx.rule.moving && sk.obm && sk.obm[em]) || null;
+        const amp = mv === 'sway' ? SWAY : 0;   // 左右飄的幅度：整段都不能碰到河、起點和家
+        if (x1 - x0 - 2 * amp <= 0) continue;
+        const x = x0 + amp + Math.random() * (x1 - x0 - 2 * amp), y = y0 + Math.random() * (y1 - y0);
+        if (river && Math.abs(x - river.x) < river.w / 2 + os / 2 + s * 0.8 + amp) continue;
+        // 每個障礙物「會經過的範圍」（不會動＝一個點；左右飄＝一條橫線；往下滾＝一條直線），範圍之間要留縫，
+        // 這樣落石不會滾過火山、會動的也不會排成一道牆
+        const area = { l: x - amp, r: x + amp, t: mv === 'fall' ? y0 : y, b: mv === 'fall' ? y1 : y };
+        const near = A => Math.hypot(Math.max(0, A.l - area.r, area.l - A.r), Math.max(0, A.t - area.b, area.t - A.b)) < gap;
+        if (obs.some(o => near(o.area))) continue;
+        if (start && Math.hypot(start.x - x, start.y - y) < os + s) continue;
+        const el = ent('obstacle' + (mv ? ' moving' : ''), em, x, y);
+        sizeEmoji(el, os, 0.85);
+        ctx.el.appendChild(el);
+        obs.push({ el: el, x: x, y: y, r: os / 2, mv: mv, cx: x, ph: Math.random() * Math.PI * 2, y0: y0, y1: y1, area: area });
+        idx++; fail = 0;
+      }
+    }
+    // 障礙物動起來：火焰左右飄（約 3 秒一趟）、落石往下滾到底再從上面出現。速度刻意慢，讓學生看準時機
+    function moveObs(dt) {
+      obs.forEach(o => {
+        if (o.mv === 'sway') { o.ph += dt * 2; o.x = o.cx + Math.sin(o.ph) * SWAY; }
+        else if (o.mv === 'fall') { o.y += dt * 75; if (o.y > o.y1) o.y = o.y0; }
+        else return;
+        put(o.el, o.x, o.y);
+      });
+      if (kit) kit.poke();
+    }
     function setBridge() {
       if (!river) return;
       const H = ctx.el.clientHeight;
@@ -699,19 +753,24 @@
       const H = ctx.el.clientHeight, s = ctx.d.size;
       let a; do { a = pick(homes); } while (homes.length > 1 && a.dataset.a === last);
       last = a.dataset.a;
-      item = ent('dg animal', a.dataset.a, 70 + Math.random() * 60, 120 + Math.random() * (H - 220));
+      start = { x: 70 + Math.random() * 60, y: 120 + Math.random() * (H - 220) };
+      item = ent('dg animal', a.dataset.a, start.x, start.y);
       sizeEmoji(item, s);
       item.dataset.a = a.dataset.a;
       ctx.el.appendChild(item);
       setBridge();
+      placeObs();
     }
     return {
       init(c) {
         ctx = c; sk = ctx.skin;
         const W = ctx.el.clientWidth, H = ctx.el.clientHeight, n = ctx.rule.homes || 3;
         bagN('home-' + sk.k, sk.list, n).forEach((A, i) => {
-          const y = n === 2 ? H * (0.3 + i * 0.4) : H * (0.2 + i * 0.29);
-          const hm = ent('zone house', `<div class="z-ico">${sk.zi}</div><div class="house-face">${A[0]}</div><div class="z-name">${esc(A[1] + sk.suffix)}</div>`, W - 300, y);
+          // 挑戰級上方有題目橫幅：家往下排，不要被橫幅蓋住
+          const y = n === 2 ? H * (0.3 + i * 0.4) : ctx.rule.river ? H * (0.26 + i * 0.27) : H * (0.2 + i * 0.29);
+          // A＝[動物, 名字, 家的圖, 家的名字]：每隻動物回自己合理的家（例：松鼠的樹洞、救護車回醫院）
+          const label = A[3] ? A[1] + (sk.join || '的') + A[3] : A[1] + (sk.suffix || '的家');
+          const hm = ent('zone house', `<div class="z-ico">${A[2] || sk.zi}</div><div class="house-face">${A[0]}</div><div class="z-name">${esc(label)}</div>`, W - 300, y);
           hm.dataset.a = A[0];
           ctx.el.appendChild(hm); homes.push(hm);
         });
@@ -721,17 +780,25 @@
           river.bridge = MP.h('div', 'bridge');
           [river.top, river.bot, river.bridge].forEach(e => { e.style.width = (e === river.bridge ? river.w + 32 : river.w) + 'px'; ctx.el.appendChild(e); });
           river.bridge.style.height = river.bh + 'px';
-          banner(ctx, pick(['從木橋上拖過河，不要碰到河水 🌊！', '要走木橋過河喔！碰到河水 🌊 會掉下去！']));
+          banner(ctx, pick(['走木橋過河，繞過' + sk.o + '！', '碰到河水 🌊 或障礙物，要回起點重來！']));   // 不要太長，會蓋到右上角的家
         }
         kit = dragKit(ctx, {
           zones: () => homes.map(hm => ({ el: hm, ok: it => it.dataset.a === hm.dataset.a })),
           good: (it, z) => { suck(it, z, ctx); item = null; done++; ctx.hit(); ctx.later(next, 350); },
-          blockKind: 'river',
-          blocked: river ? c => {
-            const m = ctx.d.size * 0.25, half = river.bh / 2;
-            return Math.abs(c.x - river.x) < river.w / 2 + m && (c.y < river.by - half + m || c.y > river.by + half - m);
-          } : null,
+          blocked: c => {
+            const s = ctx.d.size;
+            if (river) {
+              const m = s * 0.25, half = river.bh / 2;
+              if (Math.abs(c.x - river.x) < river.w / 2 + m && (c.y < river.by - half + m || c.y > river.by + half - m)) return 'river';
+            }
+            // 動物身體的一部分碰到障礙物就算（稍微寬鬆一點，邊邊擦到不算）
+            const o = obs.find(q => Math.hypot(q.x - c.x, q.y - c.y) < q.r * 0.8 + s * 0.3);
+            if (o) { shake(o.el); return 'bump'; }
+            return false;
+          },
+          resetTo: () => start,   // 失敗就回起點重來
         });
+        if (ctx.rule.moving) ctx.frame(moveObs);
         next();
       },
       onGesture(ev) { dragCommon(ctx, ev, kit); },
@@ -866,9 +933,9 @@
   // ---------- 3-3 選取還是打開（輕鬆只考打開／普通混合／挑戰一題兩步） ----------
   G.selopen = function () {
     let ctx, filt, icons = [], task = null, busy = false, lastName = '';
-    const POOL = [['📁', '照片'], ['📁', '作業'], ['📁', '遊戲'], ['🎵', '兒歌'], ['🖼️', '小狗'], ['📄', '日記'], ['🎬', '影片'], ['📊', '成績'],
-                  ['📁', '音樂'], ['🖼️', '海邊'], ['📝', '筆記'], ['🎵', '校歌'], ['📄', '通知單'], ['🖼️', '花朵'], ['📁', '下載'], ['🎮', '小遊戲']];
-    const label = t => `「${t.querySelector('.di-ico').textContent} ${esc(t.dataset.name)}」`;
+    const POOL = [['📁', '照片'], ['📁', '作業'], ['📁', '遊戲'], ['🎵', '兒歌'], [pic('🐶'), '小狗'], ['📄', '日記'], ['🎬', '影片'], ['📊', '成績'],
+                  ['📁', '音樂'], [pic('🏖️'), '海邊'], ['📝', '筆記'], ['🎵', '校歌'], ['📄', '通知單'], [pic('🌸'), '花朵'], ['📁', '下載'], ['🎮', '小遊戲']];
+    const label = t => `「${icoOf(t)} ${esc(t.dataset.name)}」`;
     const stepText = st => st.open ? `<b class="op-open">${st.v}</b>，<b>${st.o}</b> ${label(st.el)}` : `<b class="op-sel">${st.v}</b>，<b>${st.o}</b> ${label(st.el)}`;
     function mkStep(el, open) { return { el: el, open: open, v: open ? V.dbl() : V.one(), o: open ? V.open() : V.sel() }; }
     function pickIcon(not) { let t, k = 0; do { t = pick(icons); } while (icons.length > 2 && (t.dataset.name === lastName || t === not) && ++k < 30); lastName = t.dataset.name; return t; }
@@ -886,7 +953,8 @@
     }
     function showWindow(t) {
       const W = ctx.el.clientWidth, H = ctx.el.clientHeight;
-      const w = MP.h('div', 'mini-win', `<div class="win-bar">${t.querySelector('.di-ico').textContent} ${esc(t.dataset.name)}<span>✕</span></div><div class="win-body">打開了！🎉</div>`);
+      // 打開以後看得到裡面的東西（圖片就看到那張圖）
+      const w = MP.h('div', 'mini-win', `<div class="win-bar">${esc(t.dataset.name)}<span>✕</span></div><div class="win-body"><span class="mw-ico">${icoOf(t)}</span>打開了！🎉</div>`);
       put(w, W / 2 + 80, H / 2 + 20);
       ctx.el.appendChild(w);
       setTimeout(() => w.remove(), 800);
@@ -1000,8 +1068,8 @@
     const MENU3 = MENU6.filter(m => ['copy', 'del', 'ren'].indexOf(m.k) >= 0);
     const NEWSUB = [{ k: 'newf', icon: '📁', t: '資料夾' }, { k: 'newt', icon: '📝', t: '文字文件' }, { k: 'newp', icon: '🖼️', t: '點陣圖' }];
     const DESK = [{ k: 'view', icon: '👁️', t: '檢視' }, { k: 'refresh', icon: '🔄', t: '重新整理' }, { k: 'new', icon: '➕', t: '新增', sub: NEWSUB }, { k: 'paste', icon: '📋', t: '貼上', off: true }];
-    const FILES = [['📄', '作業'], ['🖼️', '小狗照片'], ['🎵', '兒歌'], ['📝', '日記'], ['🎬', '影片'], ['📊', '成績表'], ['🖼️', '畢業照'], ['🎵', '校歌'],
-                   ['📄', '通知單'], ['📝', '讀書心得'], ['🎬', '運動會'], ['🖼️', '海邊']];
+    const FILES = [['📄', '作業'], [pic('🐶'), '小狗照片'], ['🎵', '兒歌'], ['📝', '日記'], ['🎬', '影片'], ['📊', '成績表'], [pic('🎓'), '畢業照'], ['🎵', '校歌'],
+                   ['📄', '通知單'], ['📝', '讀書心得'], ['🎬', '運動會'], [pic('🏖️'), '海邊']];
     const fileMenu = () => (ctx.rule.items === 3 ? MENU3 : MENU6);
     function round() {
       busy = false;
@@ -1009,7 +1077,7 @@
       if (r.sub && Math.random() < 0.35) want = Object.assign({ where: 'desk' }, bag('pick-sub', NEWSUB));
       else { let w, k = 0; do { w = bag('pick-' + r.items, fileMenu()); } while (want && w.k === want.k && ++k < 5); want = Object.assign({ where: 'file' }, w); }
       const f = bag('pick-file', FILES);
-      file.querySelector('.di-ico').textContent = f[0];
+      file.querySelector('.di-ico').innerHTML = f[0];
       file.querySelector('.di-name').textContent = f[1];
       file.classList.remove('done-ok');
       if (want.where === 'desk') banner(ctx, `在<b>桌面空白的地方</b>${V.R()}，${V.pick()}「新增」裡面的「${want.t}」`);
@@ -1053,8 +1121,8 @@
   // ---------- 4-3 桌面大整理（輕鬆刪除＋新增／普通加複製貼上／挑戰全部，一題兩件事） ----------
   G.desk = function () {
     let ctx, menu, S = [], used = [], clip = null, task = null, lastType = '', busy = false, trash;
-    const POOL = [['📄', '作業'], ['🖼️', '海邊'], ['🎵', '兒歌'], ['📝', '日記'], ['🖼️', '小狗'], ['🎬', '影片'], ['📊', '成績'], ['📄', '通知單'],
-                  ['🎵', '校歌'], ['🖼️', '畢業照'], ['📝', '心得'], ['🎮', '小遊戲'], ['📄', '週記'], ['🎬', '卡通']];
+    const POOL = [['📄', '作業'], [pic('🏖️'), '海邊'], ['🎵', '兒歌'], ['📝', '日記'], [pic('🐶'), '小狗'], ['🎬', '影片'], ['📊', '成績'], ['📄', '通知單'],
+                  ['🎵', '校歌'], [pic('🎓'), '畢業照'], ['📝', '心得'], ['🎮', '小遊戲'], ['📄', '週記'], ['🎬', '卡通']];
     const NEWNAMES = ['我的畫', '照片', '音樂', '故事', '遊戲', '班級', '旅行', '運動會'];
     const files = () => Array.from(ctx.el.querySelectorAll('.dicon.file'));
     function slotFree() { const i = used.indexOf(false); if (i < 0) return -1; used[i] = true; return i; }
@@ -1067,7 +1135,7 @@
       return d;
     }
     function removeIcon(d) { used[+d.dataset.slot] = false; d.remove(); }
-    const nm = d => `「${d.querySelector('.di-ico').textContent} ${esc(d.dataset.name)}」`;
+    const nm = d => `「${icoOf(d)} ${esc(d.dataset.name)}」`;
     // 名字不能跟桌面上已有的重複（像 Windows 一樣加 (2)、(3)）
     function uniq(base) {
       const taken = Array.from(ctx.el.querySelectorAll('.dicon')).map(d => d.dataset.name);
@@ -1128,7 +1196,7 @@
       if (t.type === 'copy' && t.step === 1) {
         if (k !== 'copy') return ctx.miss('menu');
         if (target !== t.el) return wrongTarget();
-        clip = { icon: target.querySelector('.di-ico').textContent, name: target.dataset.name };
+        clip = { icon: icoOf(target), name: target.dataset.name };
         t.step = 2; MP.sfx('hit', 4); showTask();
         return;
       }
@@ -1196,7 +1264,8 @@
     '運動': [['⚽', '足球'], ['🏀', '籃球'], ['⚾', '棒球'], ['🏊', '游泳'], ['🏸', '羽毛球'], ['🏓', '桌球']],
     '樂器': [['🎹', '鋼琴'], ['🎸', '吉他'], ['🥁', '鼓'], ['🎺', '小喇叭'], ['🎻', '小提琴'], ['🎷', '薩克斯風']],
   };
-  const NEST = { '大自然': ['動物', '水果', '天氣'], '好好玩': ['交通工具', '運動', '樂器', '文具'] };
+  // 兩層資料夾：上層名字要真的包得住下層（文具不算「好好玩」）
+  const NEST = { '大自然': ['動物', '水果', '天氣'], '好好玩': ['運動', '樂器'], '生活用品': ['交通工具', '文具'] };
   G.find = function () {
     let ctx, filt, win = null, path = [], cats = [], want = null, busy = false, lastName = '';
     const order = {};
@@ -1213,7 +1282,8 @@
       // 同一局裡，資料夾內容的順序固定（按「上一層」回來時不要重排，學生才找得到剛剛看過的）
       order[name] = order[name] || (subs ? shuffle(subs).map(s => ['📁', s, true]) : shuffle(FIND[name]).map(F => [F[0], F[1], false]));
       order[name].forEach(F => {
-        const f = MP.h('div', 'ficon' + (F[2] ? ' folder' : ''), `<div class="di-ico">${F[0]}</div><div class="di-name">${esc(F[1])}</div>`);
+        // 資料夾裡的檔案是照片：用相框縮圖，看得出是什麼照片
+        const f = MP.h('div', 'ficon' + (F[2] ? ' folder' : ''), `<div class="di-ico">${F[2] ? F[0] : pic(F[0])}</div><div class="di-name">${esc(F[1])}</div>`);
         f.dataset.name = F[1];
         body.appendChild(f);
       });
@@ -1227,8 +1297,8 @@
       const all = [].concat(...cats.map(k => FIND[k].map(F => ({ folder: k, icon: F[0], name: F[1] }))));
       let w, k = 0; do { w = bag('find-' + cats.join(), all); } while (w.name === lastName && ++k < 5);
       want = w; lastName = w.name;
-      if (ctx.rule.hint) banner(ctx, `找到「${w.icon} ${esc(w.name)}」：它在「📁 ${esc(w.folder)}」裡，先${V.dbl()}${V.open()}資料夾，再${V.dbl()}${V.open()}它`);
-      else banner(ctx, `找到「${w.icon} ${esc(w.name)}」：先${V.dbl()}${V.open()}資料夾，再${V.dbl()}${V.open()}它`);
+      if (ctx.rule.hint) banner(ctx, `找到「${pic(w.icon)} ${esc(w.name)}」照片：它在「📁 ${esc(w.folder)}」裡，先${V.dbl()}${V.open()}資料夾，再${V.dbl()}${V.open()}它`);
+      else banner(ctx, `找到「${pic(w.icon)} ${esc(w.name)}」照片：先${V.dbl()}${V.open()}資料夾，再${V.dbl()}${V.open()}它`);
     }
     return {
       init(c) {
@@ -1263,7 +1333,7 @@
         if (f) {
           if (f.dataset.name !== want.name) { ctx.miss('wrong'); return; }
           busy = true;
-          const v = MP.h('div', 'viewer', `<div class="v-ico">${want.icon}</div><div>${esc(want.name)}</div>`);
+          const v = MP.h('div', 'viewer', `<div class="v-ico">${pic(want.icon)}</div><div>${esc(want.name)}</div>`);
           ctx.el.appendChild(v);
           setTimeout(() => v.remove(), 900);
           ctx.hit();
@@ -1276,7 +1346,7 @@
 
   // ---------- 5-2 檔案拖進資料夾（輕鬆 2 類／普通 3 類／挑戰 4 類＋資源回收筒） ----------
   const SORT = [
-    { k: 'pic', name: '圖片', icon: '🖼️', items: ['海邊', '小狗', '生日', '公園', '畢業照', '花朵', '動物園', '全家福'] },
+    { k: 'pic', name: '圖片', icon: '🖼️', items: [['海邊', '🏖️'], ['小狗', '🐶'], ['生日', '🎂'], ['公園', '🌳'], ['畢業照', '🎓'], ['花朵', '🌸'], ['動物園', '🦒'], ['全家福', '👨‍👩‍👧']] },
     { k: 'music', name: '音樂', icon: '🎵', items: ['兒歌', '校歌', '國歌', '生日快樂', '小星星', '兩隻老虎', '造飛機', '火車快飛'] },
     { k: 'doc', name: '文件', icon: '📄', items: ['作業', '日記', '通知單', '週記', '心得', '報告', '課表', '聯絡簿'] },
     { k: 'video', name: '影片', icon: '🎬', items: ['卡通', '運動會', '表演', '科學實驗', '旅行', '畢業典禮'] },
@@ -1302,7 +1372,8 @@
         for (let i = 0; list.length < ctx.total; i++) {
           let K = kinds[i % kinds.length];
           if (K === JUNK && list.filter(x => x.k === 'junk').length >= 2) K = kinds[0];
-          list.push({ k: K.k, icon: K.icon, name: bag('sort-' + K.k, K.items) });
+          const v = bag('sort-' + K.k, K.items);   // 圖片是 [名字, 內容]，用相框縮圖
+          list.push(Array.isArray(v) ? { k: K.k, icon: pic(v[1]), name: v[0] } : { k: K.k, icon: K.icon, name: v });
         }
         const pts = scatter(list.length, 80, 70, W - (big ? 620 : 520), H - 70, 125, W, H);
         shuffle(list).slice(0, pts.length).forEach((it, i) => {
@@ -1322,10 +1393,10 @@
 
   // ---------- 5-3 整理資料夾（輕鬆資料夾已做好／普通新增一個／挑戰新增兩個） ----------
   const THEMES = [
-    { k: 'art', name: '我的畫', icon: '🎨', items: ['小狗畫', '房子畫', '花朵畫', '太陽畫', '大樹畫', '彩虹畫', '海邊畫'] },
-    { k: 'music', name: '我的音樂', icon: '🎵', items: ['兒歌', '校歌', '小星星', '生日快樂', '兩隻老虎', '造飛機'] },
-    { k: 'photo', name: '我的照片', icon: '🖼️', items: ['畢業照', '校外教學', '運動會', '生日派對', '全家福', '小狗照'] },
-    { k: 'hw', name: '我的作業', icon: '📄', items: ['國語作業', '數學作業', '自然報告', '日記', '週記', '心得'] },
+    { k: 'art', name: '我的畫', icon: '🎨', w: '畫', items: [['小狗畫', '🐶'], ['房子畫', '🏠'], ['花朵畫', '🌸'], ['太陽畫', '☀️'], ['大樹畫', '🌳'], ['彩虹畫', '🌈'], ['海邊畫', '🏖️']] },
+    { k: 'music', name: '我的音樂', icon: '🎵', w: '音樂', items: ['兒歌', '校歌', '小星星', '生日快樂', '兩隻老虎', '造飛機'] },
+    { k: 'photo', name: '我的照片', icon: '🖼️', w: '照片', items: [['畢業照', '🎓'], ['校外教學照', '🚌'], ['運動會照', '🏃'], ['生日派對照', '🎂'], ['全家福', '👨‍👩‍👧'], ['小狗照', '🐶']] },
+    { k: 'hw', name: '我的作業', icon: '📄', w: '作業', items: ['國語作業', '數學作業', '自然報告', '日記', '週記', '心得'] },
   ];
   G.organize = function () {
     let ctx, menu, kit, plan = [], si = 0, themes = [], folders = [], left = 0, busy = false;
@@ -1336,8 +1407,8 @@
       if (s === 'create') banner(ctx, `${no}在<b>桌面空白的地方</b>${V.R()}，選「📁 新增資料夾」`);
       else if (s === 'rename') banner(ctx, `${no}在「📁 新增資料夾」上${V.R()}，選「✏️ 重新命名」，改成「${esc(themes[0].name)}」`);
       else if (s === 'name') banner(ctx, `${no}幫新資料夾取名字「${esc(folders[folders.length - 1].th.name)}」`);
-      else if (themes.length > 1) banner(ctx, `最後一步：${themes.map(t => `${t.icon} ${V.drag()}${fName(t)}`).join('，')}（還有 <b>${left}</b> 個）`);
-      else banner(ctx, `最後一步：把所有「${th.icon}」${V.drag()}${fName(th)}（還有 <b>${left}</b> 個）`);
+      else if (themes.length > 1) banner(ctx, `最後一步：${themes.map(t => `${t.w}${V.drag()}${fName(t)}`).join('，')}（還有 <b>${left}</b> 個）`);
+      else banner(ctx, `最後一步：把所有的${th.w}${V.drag()}${fName(th)}（還有 <b>${left}</b> 個）`);
     }
     function nameFolder(f) {
       plan[si] === 'create' && si++;
@@ -1375,9 +1446,11 @@
         left = per * themes.length;
         ctx.total = steps + left;
         let list = [];
-        themes.forEach(th => { list = list.concat(bagN('org-' + th.k, th.items, per).map(n => [th.icon, n, th.k])); });
+        // 畫和照片用相框縮圖（畫＝白紙黃框、照片＝天空背景），其他用原本的圖示
+        const fileOf = (th, v, kind) => (Array.isArray(v) ? [pic(v[1], th.k === 'art'), v[0], kind] : [th.icon, v, kind]);
+        themes.forEach(th => { list = list.concat(bagN('org-' + th.k, th.items, per).map(v => fileOf(th, v, th.k))); });
         const others = THEMES.filter(t => themes.indexOf(t) < 0);
-        for (let i = 0; i < 3; i++) { const t = others[i % others.length]; list.push([t.icon, bag('org-' + t.k, t.items), 'other']); }
+        for (let i = 0; i < 3; i++) { const t = others[i % others.length]; list.push(fileOf(t, bag('org-' + t.k, t.items), 'other')); }
         const pts = scatter(list.length, 80, 160, W - 560, H - 70, 130, W, H);
         shuffle(list).slice(0, pts.length).forEach((it, i) => {
           const d = dicon(it[0], it[1], pts[i].x, pts[i].y, 'dg file');
