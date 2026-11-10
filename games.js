@@ -368,6 +368,37 @@
      ==================================================================== */
   // ---------- 1-1 點泡泡（輕鬆不動／普通往上飄／挑戰只點指定顏色＋干擾物） ----------
   const COLORS = [['紅色', 0, '#fa5252'], ['藍色', 210, '#339af0'], ['綠色', 130, '#40c057'], ['黃色', 48, '#fcc419'], ['紫色', 285, '#be4bdb']];
+  // 染色濾鏡：把圖示變成黑白，再依亮暗換成同一個顏色的深淺（保留圖案細節，整個圖示變成那個顏色）
+  function tintDefs() {
+    if (document.getElementById('mp-tints')) return;
+    const box = document.createElement('div');
+    box.id = 'mp-tints';
+    box.style.cssText = 'position:absolute;width:0;height:0;overflow:hidden;';
+    const f = (i, hex) => {
+      const c = [1, 3, 5].map(k => parseInt(hex.substr(k, 2), 16) / 255);
+      // 輸出 = 顏色 ×（0.45 + 0.8 × 亮度）：暗的地方是深色，亮的地方是亮色
+      const row = v => `${(0.2126 * 0.8 * v).toFixed(4)} ${(0.7152 * 0.8 * v).toFixed(4)} ${(0.0722 * 0.8 * v).toFixed(4)} 0 ${(0.45 * v).toFixed(4)}`;
+      return `<filter id="mp-tint-${i}" color-interpolation-filters="sRGB"><feColorMatrix type="matrix" values="${row(c[0])} ${row(c[1])} ${row(c[2])} 0 0 0 1 0"/></filter>`;
+    };
+    box.innerHTML = `<svg width="0" height="0" aria-hidden="true"><defs>${COLORS.map((c, i) => f(i, c[2])).join('')}</defs></svg>`;
+    document.body.appendChild(box);
+  }
+  // 打中的爆炸特效：放在遊戲畫面上（不放在洞裡，才不會被洞口切掉）
+  function boom(ctx, el, icon) {
+    const pr = ctx.el.getBoundingClientRect(), r = el.getBoundingClientRect();
+    const s = Math.max(60, r.width * 1.3);
+    const b = ent('boom', `<span class="bm-core" style="font-size:${Math.round(s)}px">${icon}</span>`,
+      r.left - pr.left + r.width / 2, r.top - pr.top + r.height / 2);
+    const cols = ['#ffd43b', '#ff922b', '#fa5252', '#fff3bf'];
+    for (let i = 0; i < 10; i++) {
+      const a = i / 10 * Math.PI * 2 + Math.random() * 0.4, d = s * (0.7 + Math.random() * 0.5);
+      const sp = MP.h('i', 'bm-sp');
+      sp.style.cssText = `--dx:${Math.cos(a) * d}px;--dy:${Math.sin(a) * d}px;background:${cols[i % 4]};`;
+      b.appendChild(sp);
+    }
+    ctx.el.appendChild(b);
+    setTimeout(() => b.remove(), 600);
+  }
   G.bubble = function () {
     let ctx, sk, items = [];
     function make(p, s, i, kind, col) {
@@ -377,7 +408,8 @@
       else b = MP.h('div', 'tgt emo', sk.em[i % sk.em.length]);
       b.style.cssText = `width:${s}px;height:${s}px;left:${p.x - s / 2}px;top:${p.y - s / 2}px;font-size:${Math.round(s * 0.78)}px;line-height:${s}px;`;
       if (sk.css && kind !== 'decoy') { b.style.setProperty('--hue', col ? col[1] : (i * 47) % 360); if (col) b.classList.add('vivid'); }
-      else if (col) { b.classList.add('ring'); b.style.setProperty('--rc', col[2]); }
+      // 圖示（貝殼、花、氣球…）直接染成那個顏色，不在後面墊圓圈（2026-11-10 老師要求）
+      else if (col) { tintDefs(); b.style.filter = `url(#mp-tint-${COLORS.indexOf(col)}) drop-shadow(0 4px 4px rgba(0,0,0,.2))`; }
       b.dataset.kind = kind;
       ctx.el.appendChild(b);
       const it = { el: b, x: p.x, y: p.y, vy: -(18 + Math.random() * 16) };
@@ -478,22 +510,30 @@
       },
       onGesture(ev) {
         if (common(ctx, ev)) return;
-        // 地鼠小的時候，洞口前緣會蓋住地鼠下半身：點到洞口也算點到洞裡的地鼠
-        let m = elAt(ev, '.mole');
-        if (!m) { const h = elAt(ev, '.hole'); m = h && h.querySelector('.mole:not(.gone):not(.hit)'); }
-        const a = m && act.find(x => x.el === m);
+        /* 判定（2026-11-10 老師：挑戰級點大洞就算，難度等於沒提升）：
+           輕鬆＝點到洞口也算；普通＝點在牠身上（旁邊寬容 12px）；挑戰＝一定要點在牠身上。
+           用牠的外框判斷，不用 elementFromPoint（洞口前緣會蓋住下半身） */
+        const pad = ctx.level === 'normal' ? 12 : 0;
+        let a = act.find(x => {
+          const r = x.el.getBoundingClientRect();
+          return ev.x >= r.left - pad && ev.x <= r.right + pad && ev.y >= r.top - pad && ev.y <= r.bottom + pad;
+        });
+        if (!a && ctx.level === 'easy') {
+          const h = elAt(ev, '.hole'), i = holes.indexOf(h);
+          a = act.find(x => x.hole === i);
+        }
         if (!a) return;
         clearTimeout(a.timer);
-        if (a.decoy) {
+        act = act.filter(x => x !== a);
+        if (a.decoy) {   // 點錯：牠搖一搖、縮回洞裡（不換成哭臉）
           ctx.decoy();
-          a.el.textContent = '😢';
-          act = act.filter(x => x !== a);
-          a.el.classList.add('gone'); setTimeout(() => a.el.remove(), 300);
+          a.el.classList.add('oops');
+          setTimeout(() => a.el.classList.add('gone'), 250);
+          setTimeout(() => a.el.remove(), 560);
           return;
         }
-        act = act.filter(x => x !== a);
-        a.el.classList.add('hit'); a.el.textContent = sk.hitT || '💥';
-        setTimeout(() => a.el.remove(), 380);
+        boom(ctx, a.el, sk.hitT || '💥');
+        a.el.remove();
         ctx.hit();
         next();
       },
@@ -811,14 +851,20 @@
      ==================================================================== */
   // ---------- 3-1 敲蛋孵小雞（輕鬆在中間／普通隨機／挑戰有干擾物和要敲兩次的） ----------
   G.egg = function () {
-    let ctx, sk, filt, egg = null, bad = null, spawned = 0;
+    let ctx, sk, filt, egg = null, bad = null, spawned = 0, lastP = null;
     function removeBad() { if (bad) { const b = bad; bad = null; b.classList.add('hatch'); setTimeout(() => b.remove(), 500); } }
     function spawn() {
       if (spawned >= ctx.total) return;
       spawned++;
       const W = ctx.el.clientWidth, H = ctx.el.clientHeight, s = Math.round(ctx.d.size * 1.3);
-      const pts = ctx.rule.center ? [{ x: W / 2 - 60, y: H / 2 }] : scatter(2, s, s, W - s - 120, H - s, s * 2.4, W, H);
+      // 每一個都換位置，而且離上一個夠遠（2026-11-10 老師：輕鬆級原本固定在正中間，太簡單）
+      // 輕鬆＝在畫面中間大範圍內隨機；普通／挑戰＝整個畫面隨機
+      const avoid = lastP ? [lastP] : null;
+      const pts = ctx.rule.mid
+        ? scatter(1, W * 0.15, H * 0.2, W * 0.75, H * 0.85, s * 2.4, W, H, avoid)
+        : scatter(2, s, s, W - s - 120, H - s, s * 2.4, W, H, avoid);
       const p = pts[0] || { x: W / 2, y: H / 2 };
+      lastP = p;
       const tough = ctx.rule.tough && Math.random() < 0.35;
       egg = ent('egg', sk.em + (tough ? '<b class="hp">×2</b>' : ''), p.x, p.y);
       egg.dataset.hp = tough ? 2 : 1;

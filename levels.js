@@ -63,7 +63,7 @@
                        hard: '{n}出來就用「左鍵」{v}，可是不要點到 {d} 喔！' },
               rules: { easy: {}, normal: { two: true }, hard: { decoy: true, note: '⚠️ 不要點到 {d}' } },
               skins: [
-                { th: 'forest', k: 'mole',  title: '打地鼠',     icon: '🐹', n: '地鼠', v: '打牠', em: '🐹', d: '🐰', hitT: '😵' },
+                { th: 'forest', k: 'mole',  title: '打地鼠',     icon: '🐹', n: '地鼠', v: '打牠', em: '🐹', d: '🐰', hitT: '💥' },
                 { th: 'forest', k: 'squir', title: '餵躲貓貓的松鼠', icon: '🐿️', n: '松鼠', v: '餵牠吃橡實', em: '🐿️', d: '🦔', hitT: '🌰' },
                 { th: 'city',   k: 'rat',   title: '抓水溝老鼠', icon: '🐀', n: '老鼠', v: '抓住牠', em: '🐀', d: '🐈', cls: 'sk-city', hitT: '🪤' },
                 { th: 'city',   k: 'mosq',  title: '打水溝蚊子', icon: '🦟', n: '蚊子', v: '打牠', em: '🦟', d: '🦋', cls: 'sk-city' },
@@ -150,9 +150,9 @@
 
     egg:    { icon: '🥚', name: '敲蛋孵小雞', mode: 'dbl', demo: 'dblclick', emoji: '🥚',
               how: '在{n}上用「左鍵」快快連點兩下，把它打開！',
-              howBy: { easy: '{n}在正中間，用「左鍵」快快連點兩下，把它打開！',
+              howBy: { easy: '{n}每次會出現在不同的地方，用「左鍵」快快連點兩下，把它打開！',
                        hard: '有的{n}要連點兩下兩次！不要點到 {d} 喔！' },
-              rules: { easy: { center: true }, normal: {}, hard: { decoy: true, tough: true, note: '⚠️ 不要點 {d}；有「×2」的要敲兩次' } },
+              rules: { easy: { mid: true }, normal: {}, hard: { decoy: true, tough: true, note: '⚠️ 不要點 {d}；有「×2」的要敲兩次' } },
               skins: [
                 { th: 'forest', k: 'egg',   title: '敲蛋孵小雞', icon: '🥚', n: '蛋',   em: '🥚', d: '🪨', hit: ['🐣', '🐥', '🐤', '🦆', '🦉', '🐢'] },
                 { th: 'forest', k: 'leaf',  title: '翻開落葉堆', icon: '🍂', n: '落葉堆', em: '🍂', d: '🐝', hit: ['🦔', '🐌', '🐞', '🐛', '🍄', '🐸', '🐿️'] },
