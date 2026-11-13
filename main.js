@@ -34,7 +34,9 @@
   }
   const pwOk = pw => sha256('mousepark:' + pw) === TEACHER_PW_HASH;
   const starStr = n => '★'.repeat(n) + '<span class="off">' + '★'.repeat(3 - n) + '</span>';
-  const getStars = id => save.stars[id] || 0;
+  // 2026-11-12：星星每個難度各存一份（輕鬆沿用舊鍵 '1-1'，普通/挑戰用 '1-1@normal'、'1-1@hard'），避免輕鬆過關連帶解鎖其他難度
+  const starKey = id => save.diff === 'easy' ? id : id + '@' + save.diff;
+  const getStars = id => save.stars[starKey(id)] || 0;
 
   // ---------- 右下角即時滑鼠圖 ----------
   const hudSvg = $('#mouseHudSvg');
@@ -278,7 +280,7 @@
     const total = r.correct + r.escaped + r.wrong;
     const acc = total ? r.correct / total : 0;
     const stars = acc >= 0.95 ? 3 : acc >= 0.85 ? 2 : 1;
-    if (stars > getStars(r.st.id)) save.stars[r.st.id] = stars;
+    if (stars > getStars(r.st.id)) save.stars[starKey(r.st.id)] = stars;
     const t = MP.todayRec(); t.n++; t.s += stars;
     MP.persist();
     const msg = stars === 3 ? '太厲害了！' : stars === 2 ? '很棒喔！' : '完成了！再練一次會更好';
